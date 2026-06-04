@@ -9,13 +9,13 @@ st.set_page_config(page_title="AI Physical Trainer", page_icon="🏋️‍♂️
 # Fetch Secrets securely from Streamlit
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 AIRTABLE_TOKEN = st.secrets["AIRTABLE_TOKEN"]
-AIRTABLE_BASE_ID = st.secrets["AIRTABLE_BASE_ID"] # We will find this in the next step
+AIRTABLE_BASE_ID = st.secrets["AIRTABLE_BASE_ID"]
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-3.5-flash')
 
-# Airtable Helper Function to save data
+# Airtable: Save Data
 def save_to_airtable(exercise, sets, reps, equipment):
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Workout_Logs"
     headers = {
@@ -23,20 +23,42 @@ def save_to_airtable(exercise, sets, reps, equipment):
         "Content-Type": "application/json"
     }
     data = {
-        "records": [
-            {
-                "fields": {
-                    "Date": datetime.today().strftime('%Y-%m-%d'),
-                    "Exercise": exercise,
-                    "Sets": int(sets),
-                    "Reps": int(reps),
-                    "Equipment Used": equipment
-                }
+        "records": [{
+            "fields": {
+                "Date": datetime.today().strftime('%Y-%m-%d'),
+                "Exercise": exercise,
+                "Sets": int(sets),
+                "Reps": int(reps),
+                "Equipment Used": equipment
             }
-        ]
+        }]
     }
     response = requests.post(url, headers=headers, json=data)
     return response.status_code == 200
+
+# Airtable: Read Data (The New Memory Function)
+def get_workout_history():
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Workout_Logs"
+    headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        records = response.json().get('records', [])
+        # Grab the last 15 exercises logged
+        recent_records = records[-15:] if len(records) > 15 else records
+        
+        history_text = ""
+        for rec in recent_records:
+            fields = rec.get('fields', {})
+            date = fields.get('Date', 'Unknown Date')
+            ex = fields.get('Exercise', 'Unknown Exercise')
+            s = fields.get('Sets', 0)
+            r = fields.get('Reps', 0)
+            equip = fields.get('Equipment Used', 'None')
+            history_text += f"- {date}: {ex} ({s} sets of {r} reps) using {equip}\n"
+            
+        return history_text if history_text else "No past workout data available yet. This is the user's first logged workout."
+    return "Error reading past data."
 
 # App UI
 st.title("🏋️‍♂️ AI Personal Coach & Dashboard")
@@ -53,14 +75,30 @@ if workout_focus == "Specified Muscle Group":
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🤖 Generate My Personalized Plan"):
-    with st.spinner("Your AI Coach is designing the routine..."):
-        focus_text = specific_muscle if workout_focus == "Specified Muscle Group" else "Whole Body"
-        prompt = f"Act as an expert physical trainer. Design a safe, effective workout plan for a user training in a {workout_environment} environment. The focus is {focus_text}. Provide clear instructions, sets, and reps."
+    with st.spinner("Analyzing your past workouts and designing today's routine..."):
         
+        # 1. Fetch user history
+        past_history = get_workout_history()
+        
+        # 2. Build the intelligent prompt
+        focus_text = specific_muscle if workout_focus == "Specified Muscle Group" else "Whole Body"
+        
+        prompt = f"""
+        Act as an expert physical trainer. Design a safe, effective workout plan for a user training in a {workout_environment} environment. 
+        The focus today is: {focus_text}.
+        
+        Here is the user's recent workout history so you know their current level and what they have already done:
+        {past_history}
+        
+        Based on this history, provide a structured routine for today. If they are training a muscle group they recently hit, suggest progressive overload (slightly more reps or weight). 
+        Provide clear instructions, sets, and reps. Format it beautifully with bullet points.
+        """
+        
+        # 3. Ask the AI
         response = model.generate_content(prompt)
         st.session_state['current_plan'] = response.text
 
-# Main Layout: Two sections
+# Main Layout
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -85,6 +123,6 @@ with col2:
                 if success:
                     st.success(f"Successfully logged {ex_name}!")
                 else:
-                    st.error("Failed to save to database. Check your Base ID configuration.")
+                    st.error("Failed to save to database.")
             else:
                 st.warning("Please enter an exercise name.")
