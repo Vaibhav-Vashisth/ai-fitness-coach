@@ -77,7 +77,7 @@ with col2:
         ex_sets = st.number_input("Sets completed", min_value=1, value=3)
         ex_reps = st.number_input("Reps per set", min_value=1, value=10)
         ex_equip = st.text_input("Equipment Used (e.g., Dumbbells, None)")
-        submit_btn = st.form_submit_form_button("Save to Dashboard")
+        submit_btn = st.form_submit_button("Save to Dashboard")
         
         if submit_btn:
             if ex_name:
