@@ -66,7 +66,7 @@ st.markdown("---")
 
 # Sidebar for AI Coaching Adjustments
 st.sidebar.header("🎯 Target & Environment")
-workout_environment = st.sidebar.selectbox("Where are you training today?", ["Gym (Full Equipment)", "Non-Gym (Bodyweight/Bands)"])
+workout_environment = st.sidebar.selectbox("Where are you training today?", ["Gym (Full Equipment)", "Non-Gym (Bodyweight/Bands)", "Calisthenics (Bars/Rings/Floor)"])
 workout_focus = st.sidebar.selectbox("What is the focus?", ["Whole Body", "Specified Muscle Group"])
 
 specific_muscle = ""
