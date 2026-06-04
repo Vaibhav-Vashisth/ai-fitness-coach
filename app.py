@@ -61,7 +61,7 @@ def parse_ai_response(full_text):
 st.title("🏋️‍♂️ AI Personal Coach & Dashboard")
 st.markdown("---")
 
-tab1, tab2 = st.tabs(["🤖 Live Coaching Session", "📈 Progress Analytics"])
+tab1, tab2, tab3 = st.tabs(["🤖 Live Coaching Session", "📝 Manual Log", "📈 Progress Analytics"])
 
 with tab1:
     # Sidebar: Initial Generation
@@ -107,7 +107,6 @@ with tab1:
             st.session_state['visual_plan'] = visual_plan
             st.session_state['raw_payload'] = raw_payload
 
-    # Main Workspace Layout
     col1, col2 = st.columns([2, 1])
     
     with col1:
@@ -119,27 +118,25 @@ with tab1:
 
     with col2:
         st.subheader("⚡ Live Coach Interactions")
-        
-        # Feature 1: Mid-Workout Course Correction
         if 'visual_plan' in st.session_state:
-            st.markdown("**Need an adjustment?** Tell the coach if an exercise hurts, if it's too heavy, or if you can't finish the reps.")
+            st.markdown("**Need an adjustment?**")
             with st.form("adjustment_form", clear_on_submit=True):
-                user_feedback = st.text_input("Feedback to coach (e.g., 'Can't do pullups, arms are shot')", placeholder="Tell the coach...")
+                user_feedback = st.text_input("Feedback to coach (e.g., 'Can't do pullups')", placeholder="Tell the coach...")
                 submit_adjustment = st.form_submit_button("Modify Remaining Plan")
                 
                 if submit_adjustment and user_feedback:
                     with st.spinner("Modifying your active routine..."):
                         adjust_prompt = f"""
                         You are the active personal trainer coaching this user right now. 
-                        Here is the current workout plan you assigned:
+                        Here is the current workout plan:
                         {st.session_state['visual_plan']}
                         
                         The user just gave you this feedback mid-workout:
                         "{user_feedback}"
                         
-                        Modify the remaining part of the workout instantly to accommodate this feedback. Keep the parts they may have already finished if reasonable, but pivot the rest immediately.
+                        Modify the remaining part of the workout instantly.
                         
-                        CRITICAL REQUIREMENT: You must output the complete updated visual workout plan, followed by the newly updated JSON block matching the updated plan for auto-logging:
+                        CRITICAL REQUIREMENT: Output the updated visual plan, followed by the newly updated JSON block matching the updated plan:
                         
                         ===LOG_DATA_START===
                         [
@@ -154,40 +151,63 @@ with tab1:
                         st.rerun()
 
             st.markdown("---")
-            
-            # Feature 2: Automation Loop (Auto-Logging Entire Workout)
-            st.markdown("**Finished training?** Save the entire active routine to your database with one click.")
+            st.markdown("**Finished training?**")
             if st.button("✅ Finish & Auto-Log Workout", type="primary"):
                 if 'raw_payload' in st.session_state and st.session_state['raw_payload']:
                     try:
                         workout_list = json.loads(st.session_state['raw_payload'])
                         success_count = 0
-                        
-                        with st.spinner("Recording all movements to Airtable..."):
+                        with st.spinner("Recording all movements..."):
                             for item in workout_list:
-                                item_success = save_to_airtable(
+                                if save_to_airtable(
                                     exercise=item.get('exercise', 'Unknown'),
                                     sets=item.get('sets', 3),
                                     reps=item.get('reps', 10),
                                     equipment=item.get('equipment', 'None'),
                                     rpe=item.get('rpe', 7)
-                                )
-                                if item_success:
+                                ):
                                     success_count += 1
-                        
                         if success_count == len(workout_list):
-                            st.success(f"Excellent session! All {success_count} exercises logged automatically.")
-                            # Clear current session data safely
+                            st.success(f"Excellent session! {success_count} exercises logged.")
                             del st.session_state['visual_plan']
                             del st.session_state['raw_payload']
                         else:
-                            st.warning(f"Logged {success_count} out of {len(workout_list)} exercises. Check Airtable setup.")
+                            st.warning("Partial logging success. Check Airtable.")
                     except Exception as e:
-                        st.error("Error parsing the active workout tracking data. You can still log manually or try adjusting again.")
+                        st.error("Error parsing the active workout tracking data.")
                 else:
-                    st.error("No active tracking payload found. Try re-generating the routine.")
+                    st.error("No active tracking payload found.")
 
 with tab2:
+    st.subheader("📝 Manual Entry")
+    st.markdown("Use this tab for quick logging when you aren't running an AI session.")
+    
+    # We use columns to make the form look more centered and professional
+    spacer1, form_col, spacer2 = st.columns([1, 2, 1])
+    with form_col:
+        with st.form("manual_log_form", clear_on_submit=True):
+            ex_name = st.text_input("Exercise Name", placeholder="e.g., Barbell Squat")
+            
+            # Using smaller columns inside the form for a compact look
+            c1, c2, c3 = st.columns(3)
+            with c1: ex_sets = st.number_input("Sets", min_value=1, value=3)
+            with c2: ex_reps = st.number_input("Reps", min_value=1, value=10)
+            with c3: ex_rpe = st.number_input("RPE (1-10)", min_value=1, max_value=10, value=7)
+            
+            ex_equip = st.text_input("Equipment Used", placeholder="e.g., Barbell, Dumbbells, Bodyweight")
+            
+            submit_manual = st.form_submit_button("Save to Database")
+            
+            if submit_manual:
+                if ex_name:
+                    if save_to_airtable(ex_name, ex_sets, ex_reps, ex_equip, ex_rpe):
+                        st.success(f"Successfully logged {ex_name}!")
+                    else:
+                        st.error("Failed to save.")
+                else:
+                    st.warning("Please enter an exercise name.")
+
+with tab3:
     st.subheader("📊 Volume Over Time")
     records = fetch_airtable_data()
     if records:
