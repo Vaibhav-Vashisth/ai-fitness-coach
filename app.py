@@ -13,7 +13,7 @@ AIRTABLE_BASE_ID = st.secrets["AIRTABLE_BASE_ID"] # We will find this in the nex
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-3.5-flash')
 
 # Airtable Helper Function to save data
 def save_to_airtable(exercise, sets, reps, equipment):
